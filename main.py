@@ -26,7 +26,7 @@ def listenfirst_to_bq(request):
     """
     try:
         # Get request values
-        write_disposition = request.get_json().get('write_disposition')
+        write_disposition = request.get_json().get('write_disposition') or os.getenv('WRITE_DISPOSITION')
         reports_filter = request.get_json().get('reports_filter')
         start_date = request.get_json().get('start_date')
         end_date = request.get_json().get('end_date')

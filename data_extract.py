@@ -62,8 +62,10 @@ def extract_data_from_api(client: Client, config: dict, start_date: str, end_dat
     logging.info(f"Initiating API call with query: {query}")
 
     try:
-        sync_page_gen = client.sync_analytic_query(query, per_page=os.getenv('PAGE_SIZE', 1000), max_pages=os.getenv('MAX_PAGES', 100))
-        for i, page in enumerate(sync_page_gen):
+        async_page_gen = client.async_analytic_query(query,
+                                                     client_context=os.getenv('CLIENT_CONTEXT', 'Social team test query'),
+                                                     max_rows=int(os.getenv('MAX_ROWS', 1000)))
+        for i, page in enumerate(async_page_gen):
             aggregated_data.append(page.to_pandas())
 
         data = pd.concat(aggregated_data)
