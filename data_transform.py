@@ -149,4 +149,3 @@ def process_nested_field(input_list: list) -> dict:
         return {}
 
     return processed_dict
-    # return result

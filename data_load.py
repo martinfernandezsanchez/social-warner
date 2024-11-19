@@ -10,6 +10,7 @@ def load_data_to_bq(
     transformed_data: List[Dict],
     dataset_id: str,
     table_name: str,
+    write_disposition: str
 ):
     """
     Load transformed data into a BigQuery table within a specific dataset.
@@ -35,7 +36,7 @@ def load_data_to_bq(
     try:
         # Define load job configuration
         job_config = bigquery.LoadJobConfig(
-            writeDisposition=os.getenv('WRITE_DISPOSITION'),
+            write_disposition=write_disposition,
             autodetect=True
         )
 

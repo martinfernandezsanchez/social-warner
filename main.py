@@ -26,6 +26,7 @@ def listenfirst_to_bq(request):
     """
     try:
         # Get request values
+        write_disposition = request.get_json().get('write_disposition')
         reports_filter = request.get_json().get('reports_filter')
         start_date = request.get_json().get('start_date')
         end_date = request.get_json().get('end_date')
@@ -60,7 +61,8 @@ def listenfirst_to_bq(request):
                     bq_client=bq_client,
                     transformed_data=transformed_data,
                     dataset_id=bigquery_dataset,
-                    table_name=config_id
+                    table_name=config_id,
+                    write_disposition=write_disposition
                 )
                 logging.info(f"Successfully processed config ID: {config_id}")
                 processed_count += 1

@@ -2,7 +2,6 @@ import os
 import logging
 import pandas as pd
 from lfapi import Client
-from datetime import datetime, timedelta
 
 def extract_data_from_api(client: Client, config: dict, start_date: str, end_date: str) -> pd.DataFrame:
     """

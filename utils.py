@@ -3,8 +3,8 @@ import json
 import lfapi
 import logging
 import firebase_admin
-from google.cloud import secretmanager, bigquery
 from firebase_admin import firestore
+from google.cloud import secretmanager, bigquery
 
 def initialize_services():
     """
