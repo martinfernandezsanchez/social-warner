@@ -31,12 +31,13 @@ def load_data_to_bq(
         raise ValueError(error_msg)
 
     # Construct the fully qualified table ID
-    table_id = f"{bq_client.project}.{dataset_id}.010_warner_dl_lf_{table_name}"
+    table_id = f"{bq_client.project}.{dataset_id}.000_warner_dl_lf_{table_name}"
 
     try:
         # Define load job configuration
         job_config = bigquery.LoadJobConfig(
             write_disposition=write_disposition,
+            #schema_update_options="ALLOW_FIELD_ADDITION",
             autodetect=True
         )
 

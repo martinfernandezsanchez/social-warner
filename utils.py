@@ -4,7 +4,7 @@ import lfapi
 import logging
 import firebase_admin
 from firebase_admin import firestore
-from google.cloud import secretmanager, bigquery
+from google.cloud import secretmanager, bigquery, storage
 
 def initialize_services():
     """
@@ -22,9 +22,13 @@ def initialize_services():
     # 3. Initialize BigQuery Client
     bq_client = initialize_bigquery()
 
+    # 4. Initialize Storage Client
+    storage_client = initialize_storage()
+
     return {
         'firestore': db,
-        'bigquery': bq_client
+        'bigquery': bq_client,
+        'storage': storage_client
     }
 
 def initialize_logging():
@@ -69,6 +73,17 @@ def initialize_bigquery():
     bq_client = bigquery.Client()
     logging.info("BigQuery client initialized.")
     return bq_client
+
+def initialize_storage():
+    """
+    Initialize and return the Google Cloud Storage client.
+    
+    Returns:
+        storage.Client: Initialized Storage client.
+    """
+    storage_client = storage.Client()
+    logging.info("Google Cloud Storage client initialized.")
+    return storage_client
 
 def get_secret(secret_name):
     """Retrieve a secret from Secret Manager."""

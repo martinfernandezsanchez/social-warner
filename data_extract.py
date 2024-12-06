@@ -3,7 +3,7 @@ import logging
 import pandas as pd
 from lfapi import Client
 
-def extract_data_from_api(client: Client, config: dict, start_date: str, end_date: str) -> pd.DataFrame:
+def extract_data_from_api(client: Client, client_context: str, config: dict, start_date: str, end_date: str) -> pd.DataFrame:
     """
     Extract data from the Listen First API based on the provided configuration,
     handling pagination as necessary.
@@ -36,8 +36,8 @@ def extract_data_from_api(client: Client, config: dict, start_date: str, end_dat
 
     # Compute start_date and end_date
     try:
-        start_date = start_date or "{{nDaysAgo 7}}"
-        end_date = end_date or "{{maxDateAvailable}}"
+        start_date = start_date
+        end_date = end_date
     except Exception as e:
         logging.error(f"Error computing dates: {e}")
         raise RuntimeError(f"Error computing dates: {e}") from e
@@ -49,6 +49,14 @@ def extract_data_from_api(client: Client, config: dict, start_date: str, end_dat
         "group_by": config["group_by"],
         "meta_dimensions": config["meta_dimensions"],
         "filters": [{
+            "field": "lfm.fact.date_str",
+            "operator": "BETWEEN",
+            "values": [
+                start_date,
+                "2024-12-01"
+            ]
+        },
+        {
             "field": "lfm.brand_view.id",
             "operator": "IN",
             "values": config["brands"]
@@ -63,8 +71,7 @@ def extract_data_from_api(client: Client, config: dict, start_date: str, end_dat
 
     try:
         async_page_gen = client.async_analytic_query(query,
-                                                     client_context=os.getenv('CLIENT_CONTEXT', 'Social team test query'),
-                                                     max_rows=int(os.getenv('MAX_ROWS', 1000)))
+                                                     client_context=client_context)
         for i, page in enumerate(async_page_gen):
             aggregated_data.append(page.to_pandas())
 
@@ -72,7 +79,7 @@ def extract_data_from_api(client: Client, config: dict, start_date: str, end_dat
 
         logging.info(f"Total records fetched: {len(aggregated_data)}.")
         logging.info(f"Aggregated_data: {aggregated_data}.")
-        return client.fetch(json=query).to_pandas()
+        return data
 
     except Exception as e:
         logging.error(f"API call failed: {e}")

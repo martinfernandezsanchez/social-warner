@@ -1,4 +1,4 @@
-import os
+import os, json
 import logging
 from flask import jsonify
 
@@ -6,13 +6,14 @@ from utils import authenticate_lf_client, initialize_services
 from data_extract import extract_data_from_api
 from data_transform import transform_data
 from data_load import load_data_to_bq
+from data_import_from_storage import load_file_from_bucket
 
 bigquery_dataset = os.getenv('BIGQUERY_DATASET')
 
 # Initialize services
 services = initialize_services()
-db = services['firestore']
 bq_client = services['bigquery']
+storage_client = services['storage']
 
 
 def listenfirst_to_bq(request):
@@ -27,6 +28,7 @@ def listenfirst_to_bq(request):
     try:
         # Get request values
         write_disposition = request.get_json().get('write_disposition') or os.getenv('WRITE_DISPOSITION')
+        listenfirst_client_context = request.get_json().get('listenfirst_client_context') or os.getenv('LISTENFIRST_CLIENT_CONTEXT')
         reports_filter = request.get_json().get('reports_filter')
         start_date = request.get_json().get('start_date')
         end_date = request.get_json().get('end_date')
@@ -35,26 +37,43 @@ def listenfirst_to_bq(request):
         client = authenticate_lf_client()
         logging.info("Authenticated with Listen First services.")
 
-        # Retrieve export configurations
-        export_config_docs = db.collection(os.getenv('FIRESTORE_COLLECTION')).stream()
-        logging.info("Fetched export configurations from Firestore.")
+        # Retrieve export configurations from storage
+        file_content = load_file_from_bucket(
+            storage_client,
+            bucket_name="warner-listenfirst-to-bq",
+            source_blob_name="lfm_configurations.json"
+        )
+        # Process the file content (e.g., parse JSON)
+        export_config_docs = json.loads(file_content)
+        print('export_config_docs:', export_config_docs)
+        logging.info("Fetched export configurations from Storage.")
 
         processed_count = 0
-        for export_config_doc in export_config_docs:
-            export_config = export_config_doc.to_dict()
-            config_id = export_config_doc.id
+        for key, export_config_doc in export_config_docs.items():
+            config_id = key
 
             if reports_filter is not None:
                 if config_id != reports_filter: continue
             logging.info(f"Processing export config ID: {config_id}")
 
             try:
-                raw_data = extract_data_from_api(client, export_config, start_date, end_date)
+                fetch_data = {
+                    "dataset_id": export_config_doc["dataset_id"],
+                    "metrics": list(export_config_doc["metrics"].keys()),
+                    "group_by": list(export_config_doc["group_by"].keys()),
+                    "meta_dimensions": list(export_config_doc["meta_dimensions"].keys()),
+                    "brands": export_config_doc["brands"]
+                }
+                raw_data = extract_data_from_api(client, listenfirst_client_context, fetch_data, start_date, end_date)
                 if raw_data is None:
                     logging.warning(f"No data returned for config ID: {config_id}")
                     continue
 
-                transformed_data = transform_data(raw_data)
+                transform_config = {
+                    
+                }
+                transformed_data = transform_data(raw_data, export_config_doc)
+                print('transformed_data', transformed_data)
 
                 # Load data into BigQuery
                 load_data_to_bq(
