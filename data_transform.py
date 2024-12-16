@@ -1,4 +1,4 @@
-import logging
+import json
 import pandas as pd
 from typing import List, Dict
 
@@ -15,11 +15,21 @@ def transform_data(raw_df: pd.DataFrame, transform_config) -> List[Dict]:
     try:
         # Create a copy of the raw DataFrame to avoid modifying the original data
         transformed_df = raw_df.copy()
-        logging.info("Created a copy of the raw DataFrame.")
+        print(json.dumps({
+            "severity": "DEBUG",
+            "message": "Created a copy of the raw DataFrame."
+        }))
+
+        # Remove rows containing "unauthorized" in any column
+        transformed_df = transformed_df[~transformed_df.isin(["unauthorized"]).any(axis=1)]
+        print(json.dumps({
+            "severity": "DEBUG",
+            "message": "Removed rows containing 'unauthorized'"
+        }))
         
         # Remove authorized columns
-        # columns = list(transform_config["group_by"].keys()) + list(transform_config["meta_dimensions"].keys()) + list(transform_config["metrics"].keys())
-        # transformed_df = transformed_df[columns]
+        columns = list(transform_config["group_by"].keys()) + list(transform_config["meta_dimensions"].keys()) + list(transform_config["metrics"].keys())
+        transformed_df = transformed_df[columns]
         # Cast each column to the correct data type
         columns_to_cast = {**transform_config["group_by"], **transform_config["meta_dimensions"], **transform_config["metrics"]}
         for column, dtype in columns_to_cast.items():
@@ -47,9 +57,15 @@ def transform_data(raw_df: pd.DataFrame, transform_config) -> List[Dict]:
                 transformed_df = pd.concat([transformed_df, aux_df], axis=1)
                 # Delete original column
                 transformed_df = transformed_df.drop(col, axis=1)
-                logging.info(f"Processed nested column '{col}'.")
+                print(json.dumps({
+                    "severity": "DEBUG",
+                    "message": f"Processed nested column '{col}'."
+                }))
             else:
-                logging.warning(f"Column '{col}' does not exist in the DataFrame.")
+                print(json.dumps({
+                    "severity": "DEBUG",
+                    "message": f"Column '{col}' does not exist in the DataFrame."
+                }))
 
         # Handle datetime columns
         if 'lfm.fact.date_str' in transformed_df.columns:
@@ -61,17 +77,26 @@ def transform_data(raw_df: pd.DataFrame, transform_config) -> List[Dict]:
 
         # Replace dots with ampersands in column names
         transformed_df = sanitize_column_names(transformed_df)
-        logging.info("Replaced dots with ampersands in column names.")
+        print(json.dumps({
+            "severity": "DEBUG",
+            "message": "Replaced dots with ampersands in column names."
+        }))
 
         # Convert the transformed DataFrame to a list of dictionaries
         list_of_dicts = transformed_df.to_dict(orient='records')
-        logging.info(f"Transformed {len(list_of_dicts)} records successfully.")
+        print(json.dumps({
+            "severity": "INFO",
+            "message": f"Transformed {len(list_of_dicts)} records successfully."
+        }))
 
         return list_of_dicts
 
     except Exception as e:
         # Log the error with stack trace for better debugging
-        logging.exception(f"Data transformation failed: {e}")
+        print(json.dumps({
+            "severity": "ERROR",
+            "message": f"Data transformation failed: {e}"
+        }))
         return raw_df
 
 def process_nested_field(input_list: list, field_name: str) -> dict:
@@ -86,12 +111,9 @@ def process_nested_field(input_list: list, field_name: str) -> dict:
         dict or empty dict: A dict with keys and concatenated values or empty dict.
     """
     if not isinstance(input_list, list):
-        logging.debug("Not-list value encountered. Returning None.")
         return {}
     
     if not input_list:
-        # Return empty dict if the list is empty
-        logging.debug("Empty list encountered. Returning None.")
         return {}
 
     processed_dict = {}
@@ -115,51 +137,17 @@ def process_nested_field(input_list: list, field_name: str) -> dict:
                         processed_dict[key] = item
 
         except Exception as e:
-            logging.exception(f"Error processing item: {e}")
+            print(json.dumps({
+                "severity": "WARNING",
+                "message": f"Error processing item: {e}"
+            }))
             raise
 
     if not processed_dict:
         # Return empty dict if no valid "key: value" pairs are found
-        logging.debug("List with no <key>: <value> pair elements encountered. Returning None.")
         return {}
 
     return processed_dict
-
-
-# def handle_nan_values(df: pd.DataFrame) -> pd.DataFrame:
-#     """
-#     Handle NaN values in the DataFrame by applying different strategies based on data type.
-    
-#     Args:
-#         df (pd.DataFrame): DataFrame with potential NaN values.
-    
-#     Returns:
-#         pd.DataFrame: DataFrame with NaN values handled.
-#     """
-
-#     df['lfm.content.is_paid'] = df['lfm.content.is_paid'].astype(bool)
-#     df['tiktok.post.likes'] = df['tiktok.post.likes'].astype(int)
-
-#     # Example 1: Fill numeric columns with 0
-#     numeric_cols = df.select_dtypes(include=['number']).columns
-#     if not numeric_cols.empty:
-#         df[numeric_cols] = df[numeric_cols].fillna(0.0)
-#         logging.debug(f"Filled NaN values in numeric columns: {list(numeric_cols)} with 0.")
-
-#     # Example 2: Fill categorical/string columns with 'Unknown'
-#     categorical_cols = df.select_dtypes(include=['object', 'category']).columns
-#     if not categorical_cols.empty:
-#         df[categorical_cols] = df[categorical_cols].fillna('Unknown')
-#         logging.debug(f"Filled NaN values in categorical columns: {list(categorical_cols)} with 'Unknown'.")
-
-#     # Example 3: Handle datetime columns by filling with a specific date
-#     datetime_cols = df.select_dtypes(include=['datetime']).columns
-#     if not datetime_cols.empty:
-#         specific_date = pd.Timestamp('2000-01-01')  # Replace with desired default date if necessary
-#         df[datetime_cols] = df[datetime_cols].fillna(specific_date)
-#         logging.debug(f"Filled NaN values in datetime columns: {list(datetime_cols)} with {specific_date}.")
-
-#     return df
 
 def sanitize_column_names(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -176,7 +164,10 @@ def sanitize_column_names(df: pd.DataFrame) -> pd.DataFrame:
         # Replace dots with ampersands to avoid issues in BigQuery column naming
         sanitized = col.replace('.', '&')
         sanitized_columns.append(sanitized)
-        logging.debug(f"Renamed column '{col}' to '{sanitized}'.")
+        print(json.dumps({
+            "severity": "DEBUG",
+            "message": f"Renamed column '{col}' to '{sanitized}'."
+        }))
 
     df.columns = sanitized_columns
     return df

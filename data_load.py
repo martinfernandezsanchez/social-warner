@@ -1,5 +1,4 @@
-import os
-import logging
+import json
 from typing import List, Dict
 from google.cloud import bigquery
 from google.cloud.bigquery import LoadJobConfig
@@ -27,21 +26,27 @@ def load_data_to_bq(
     """
     if not transformed_data:
         error_msg = "No data provided to load into BigQuery."
-        logging.error(error_msg)
+        print(json.dumps({
+            "severity": "ERROR",
+            "message": error_msg
+        }))
         raise ValueError(error_msg)
 
     # Construct the fully qualified table ID
-    table_id = f"{bq_client.project}.{dataset_id}.000_warner_dl_lf_{table_name}"
+    table_id = f"{bq_client.project}.{dataset_id}.010_warner_dl_lf_{table_name}"
 
     try:
         # Define load job configuration
         job_config = bigquery.LoadJobConfig(
             write_disposition=write_disposition,
-            #schema_update_options="ALLOW_FIELD_ADDITION",
+            schema_update_options="ALLOW_FIELD_ADDITION",
             autodetect=True
         )
 
-        logging.info(f"Starting load job for table {table_id} with {len(transformed_data)} records.")
+        print(json.dumps({
+            "severity": "INFO",
+            "message": f"Starting load job for table {table_id} with {len(transformed_data)} records."
+        }))
 
         # Initiate load job
         load_job = bq_client.load_table_from_json(
@@ -52,11 +57,20 @@ def load_data_to_bq(
 
         # Wait for the load job to complete
         load_job.result()
-        logging.info(f"Successfully loaded {load_job.output_rows} rows into {table_id}.")
+        print(json.dumps({
+            "severity": "INFO",
+            "message": f"Successfully loaded {load_job.output_rows} rows into {table_id}."
+        }))
 
     except GoogleAPIError as e:
-        logging.error(f"Google API error occurred while loading data into {table_id}: {e}")
+        print(json.dumps({
+            "severity": "ERROR",
+            "message": f"Google API error occurred while loading data into {table_id}: {e}"
+        }))
         raise RuntimeError(f"Google API error: {e}") from e
     except Exception as e:
-        logging.error(f"An unexpected error occurred while loading data into {table_id}: {e}")
+        print(json.dumps({
+            "severity": "ERROR",
+            "message": f"An unexpected error occurred while loading data into {table_id}: {e}"
+        }))
         raise RuntimeError(f"Unexpected error: {e}") from e

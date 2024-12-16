@@ -2,8 +2,6 @@ import os
 import json
 import lfapi
 import logging
-import firebase_admin
-from firebase_admin import firestore
 from google.cloud import secretmanager, bigquery, storage
 
 def initialize_services():
@@ -14,19 +12,16 @@ def initialize_services():
         dict: A dictionary containing initialized clients (Firestore, BigQuery).
     """
     # 1. Initialize Logging
-    initialize_logging()
+    logger = initialize_logging()
 
-    # 2. Initialize Firebase Admin SDK
-    db = initialize_firebase()
-
-    # 3. Initialize BigQuery Client
+    # 2. Initialize BigQuery Client
     bq_client = initialize_bigquery()
 
-    # 4. Initialize Storage Client
+    # 3. Initialize Storage Client
     storage_client = initialize_storage()
 
     return {
-        'firestore': db,
+        'logger': logger,
         'bigquery': bq_client,
         'storage': storage_client
     }
@@ -43,25 +38,14 @@ def initialize_logging():
             logging.StreamHandler()
         ]
     )
-    logging.info("Logging has been initialized.")
+    print(json.dumps({
+        "severity": "DEBUG",
+        "message": "Logging has been initialized."
+    }))
 
-def initialize_firebase():
-    """
-    Initialize Firebase Admin SDK and return Firestore client.
-    
-    Returns:
-        firestore.Client: Initialized Firestore client.
-    """
-    if not firebase_admin._apps:
-        # Initialize Firebase Admin SDK
-        firebase_admin.initialize_app()
-        logging.info("Firebase Admin SDK initialized.")
-    else:
-        logging.info("Firebase Admin SDK already initialized.")
+    logger = logging.getLogger(__name__)
 
-    # Initialize Firestore client
-    db = firestore.Client(database=os.getenv('FIRESTORE_DATABASE'))
-    return db
+    return logger
 
 def initialize_bigquery():
     """
@@ -71,7 +55,10 @@ def initialize_bigquery():
         bigquery.Client: Initialized BigQuery client.
     """
     bq_client = bigquery.Client()
-    logging.info("BigQuery client initialized.")
+    print(json.dumps({
+        "severity": "DEBUG",
+        "message": "BigQuery client initialized."
+    }))
     return bq_client
 
 def initialize_storage():
@@ -82,7 +69,10 @@ def initialize_storage():
         storage.Client: Initialized Storage client.
     """
     storage_client = storage.Client()
-    logging.info("Google Cloud Storage client initialized.")
+    print(json.dumps({
+        "severity": "DEBUG",
+        "message": "Google Cloud Storage client initialized."
+    }))
     return storage_client
 
 def get_secret(secret_name):
@@ -100,3 +90,36 @@ def authenticate_lf_client():
     auth = lfapi.Auth(lf_credentials_json["client_id"], lf_credentials_json["client_secret"])
     client = lfapi.Client(lf_credentials_json["api_key"], auth)
     return client
+
+def load_file_from_bucket(storage_client, bucket_name, source_blob_name):
+    """
+    Loads a file from a Google Cloud Storage bucket into memory.
+
+    Args:
+        storage_client (storage.Client): Google Cloud Storage client.
+        bucket_name (str): Name of the bucket.
+        source_blob_name (str): Name of the file in the bucket.
+
+    Returns:
+        str: The content of the file as a string.
+    """
+    try:
+        # Get the bucket
+        bucket = storage_client.bucket(bucket_name)
+
+        # Get the blob (file) from the bucket
+        blob = bucket.blob(source_blob_name)
+
+        # Download the file content as text
+        file_content = blob.download_as_text()
+        print(json.dumps({
+            "severity": "INFO",
+            "message": f"File {source_blob_name} loaded from {bucket_name} into memory."
+        }))
+        return file_content
+    except Exception as e:
+        print(json.dumps({
+            "severity": "ERROR",
+            "message": f"Error loading file {source_blob_name} from {bucket_name}: {e}"
+        }))
+        raise

@@ -1,20 +1,21 @@
 import os, json
-import logging
 from flask import jsonify
 
-from utils import authenticate_lf_client, initialize_services
+from utils import authenticate_lf_client, initialize_services, load_file_from_bucket
 from data_extract import extract_data_from_api
 from data_transform import transform_data
 from data_load import load_data_to_bq
-from data_import_from_storage import load_file_from_bucket
 
+# Get Cloud Function variables
+listenfirst_client_context = os.getenv('LISTENFIRST_CLIENT_CONTEXT')
+write_disposition = os.getenv('WRITE_DISPOSITION')
 bigquery_dataset = os.getenv('BIGQUERY_DATASET')
 
 # Initialize services
 services = initialize_services()
+logger = services['logger']
 bq_client = services['bigquery']
 storage_client = services['storage']
-
 
 def listenfirst_to_bq(request):
     """HTTP Cloud Function to export reports.
@@ -27,15 +28,16 @@ def listenfirst_to_bq(request):
     """
     try:
         # Get request values
-        write_disposition = request.get_json().get('write_disposition') or os.getenv('WRITE_DISPOSITION')
-        listenfirst_client_context = request.get_json().get('listenfirst_client_context') or os.getenv('LISTENFIRST_CLIENT_CONTEXT')
         reports_filter = request.get_json().get('reports_filter')
         start_date = request.get_json().get('start_date')
-        end_date = request.get_json().get('end_date')
+        end_date = request.get_json().get('end_date') or request.get_json().get('end_date')
 
         # Authenticate LF client
         client = authenticate_lf_client()
-        logging.info("Authenticated with Listen First services.")
+        print(json.dumps({
+            "severity": "INFO",
+            "message": "Authenticated with Listen First services."
+        }))
 
         # Retrieve export configurations from storage
         file_content = load_file_from_bucket(
@@ -43,10 +45,17 @@ def listenfirst_to_bq(request):
             bucket_name="warner-listenfirst-to-bq",
             source_blob_name="lfm_configurations.json"
         )
+        
         # Process the file content (e.g., parse JSON)
         export_config_docs = json.loads(file_content)
-        print('export_config_docs:', export_config_docs)
-        logging.info("Fetched export configurations from Storage.")
+        print(json.dumps({
+            "severity": "INFO",
+            "message": f"Fetched export configurations from Storage."
+        }))
+        print(json.dumps({
+            "severity": "DEBUG",
+            "message": f"export_config_docs: {export_config_docs}"
+        }))
 
         processed_count = 0
         for key, export_config_doc in export_config_docs.items():
@@ -54,7 +63,10 @@ def listenfirst_to_bq(request):
 
             if reports_filter is not None:
                 if config_id != reports_filter: continue
-            logging.info(f"Processing export config ID: {config_id}")
+            print(json.dumps({
+                "severity": "INFO",
+                "message": f"Processing export config ID: {config_id}"
+            }))
 
             try:
                 fetch_data = {
@@ -66,14 +78,17 @@ def listenfirst_to_bq(request):
                 }
                 raw_data = extract_data_from_api(client, listenfirst_client_context, fetch_data, start_date, end_date)
                 if raw_data is None:
-                    logging.warning(f"No data returned for config ID: {config_id}")
+                    print(json.dumps({
+                        "severity": "WARNING",
+                        "message": f"No data returned for config ID: {config_id}"
+                    }))
                     continue
 
-                transform_config = {
-                    
-                }
                 transformed_data = transform_data(raw_data, export_config_doc)
-                print('transformed_data', transformed_data)
+                print(json.dumps({
+                    "severity": "DEBUG",
+                    "message": f"transformed_data: {transformed_data}"
+                }))
 
                 # Load data into BigQuery
                 load_data_to_bq(
@@ -83,11 +98,17 @@ def listenfirst_to_bq(request):
                     table_name=config_id,
                     write_disposition=write_disposition
                 )
-                logging.info(f"Successfully processed config ID: {config_id}")
+                print(json.dumps({
+                    "severity": "INFO",
+                    "message": f"Successfully processed config ID: {config_id}"
+                }))
                 processed_count += 1
 
             except Exception as e:
-                logging.error(f"Error processing config ID {config_id}: {e}")
+                print(json.dumps({
+                    "severity": "ERROR",
+                    "message": f"Error processing config ID {config_id}: {e}"
+                }))
                 # Optionally, handle specific exceptions or implement retry logic
 
         return jsonify({
@@ -95,5 +116,8 @@ def listenfirst_to_bq(request):
         }), 200
 
     except Exception as e:
-        logging.critical(f"Function failed: {e}")
+        print(json.dumps({
+            "severity": "CRITICAL",
+            "message": f"Function failed: {e}"
+        }))
         return jsonify({"error": "Internal Server Error"}), 500
