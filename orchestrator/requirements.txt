@@ -1,0 +1,5 @@
+google-auth
+requests
+google-cloud-storage
+google-cloud-bigquery-datatransfer
+google-cloud-bigquery
